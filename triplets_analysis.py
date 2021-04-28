@@ -8,7 +8,9 @@
 import csv
 import itertools
 import copy
+import json
 import math
+import os
 import random
 
 
@@ -112,8 +114,8 @@ class triplets_analysis:
                                        str(t[1]),
                                        matcher.match(str(self.entities[str(t[2])]['type']), name=str(t[2])).first())
                     self.graph.create(rel)
-                except AttributeError as e:
-                    print('Error:', t)
+                except:
+                    print('Error:')
                 m += 1
                 print(m, t)
 
@@ -136,10 +138,10 @@ class triplets_analysis:
                 self.relations[relation]['tail'] = tail
                 if relation not in self.entities[head]['relation_as_head']:
                     self.entities[head]['relation_as_head'].append(relation)
-                self.entities[head]['count'] += 1
+                    self.entities[head]['count'] += 1
                 if relation not in self.entities[tail]['relation_as_tail']:
                     self.entities[tail]['relation_as_tail'].append(relation)
-                self.entities[tail]['count'] += 1
+                    self.entities[tail]['count'] += 1
 
     def classify_entities(self):
         """分析实体类别"""
@@ -157,7 +159,7 @@ class triplets_analysis:
                 continue
             flag = False
             for h in union.keys():
-                if list(set(self.entities[e]['relation_as_head']) & set(union[h]['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(set(union[h]['find'][1]))):
+                if list(set(self.entities[e]['relation_as_head']) & set(union[h]['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(union[h]['find'][1])):
                     # 有交集
                     self.entities[e]['type'] = h
                     classified.append(e)
@@ -198,6 +200,20 @@ class triplets_analysis:
         '''for e in self.entities.keys():
             print(e, self.entities[e]['type'], self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail'])
         print(union)'''
+
+        '''item = json.dumps(union)
+        try:
+            if not os.path.exists('dic.json'):
+                with open('dic.json', "w", encoding='utf-8') as f:
+                    f.write(item + ",\n")
+                    print("^_^ write success")
+            else:
+                with open('dic.json', "a", encoding='utf-8') as f:
+                    f.write(item + ",\n")
+                    print("^_^ write success")
+        except Exception as e:
+            print("write error==>", e)'''
+
         return union
 
     def split_dataset(self, ratio='8:1:1', savepath='./', conditional_random=True):
@@ -390,7 +406,7 @@ if __name__ == "__main__":
     # 三元组统计
     # triplets.save_result_to_CSV(savepath='result/')
     # 数据集分割
-    # triplets.split_dataset(ratio='3000:-:-', savepath='result/', conditional_random=True)
+    # triplets.split_dataset(ratio='10:1:1', savepath='result/', conditional_random=True)
     # 三元组导入Neo4j
     triplets.triplets_to_Neo4j("http://127.0.0.1//:7474", 'testGraph', '123456', deleteAll=True)
 

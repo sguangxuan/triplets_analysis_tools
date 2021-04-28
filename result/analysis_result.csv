@@ -1,5 +1,0 @@
-name,head_number,relation_type_number,tail_number,entity_number,triplet_number
-data/train.txt,14,55,14,14,1592
-data/valid.txt,14,45,14,14,199
-data/test.txt,14,41,14,14,201
-sum,14,55,14,14,1992
