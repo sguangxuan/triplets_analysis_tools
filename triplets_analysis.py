@@ -150,10 +150,20 @@ class triplets_analysis:
         type_id = [0]
         classified = []
         union = {}
+        unionTree = {}  # 这个Tree中的定义，根节点为unionTree，unionTree的子节点是并查集，各个子节点维护一个evidence(证据)的数值，叶子节点是小并查集
+
+
+
+
+
+
+
         for e in self.entities.keys():
             if len(classified) == 0:
                 self.entities[e]['type'] = max(type_id) + 1
                 union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
+
+
                 type_id.append(max(type_id) + 1)
                 classified.append(e)
                 continue
@@ -201,7 +211,7 @@ class triplets_analysis:
             print(e, self.entities[e]['type'], self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail'])
         print(union)'''
 
-        '''item = json.dumps(union)
+        item = json.dumps(union)
         try:
             if not os.path.exists('dic.json'):
                 with open('dic.json', "w", encoding='utf-8') as f:
@@ -212,7 +222,7 @@ class triplets_analysis:
                     f.write(item + ",\n")
                     print("^_^ write success")
         except Exception as e:
-            print("write error==>", e)'''
+            print("write error==>", e)
 
         return union
 
@@ -393,27 +403,35 @@ class Neo4j_analysis:
         self.password = password
         self.graph = Graph(self.ip, username=self.username, password=self.password)
 
-    def neo4j_to_triplets(self, addr, delimiter='\t'):
-        grapha = self.graph.run("MATCH (a)-[r]-(b) RETURN a.name, type(r), b.name").to_table()
+    def neo4j_to_triplets(self, addr, delimiter='\t', use_id=True):
+        if use_id:
+            grapha = self.graph.run("MATCH (a)-[r]->(b) RETURN id(a), type(r), id(b)").to_table()
+            id2entity = self.graph.run("MATCH (a) RETURN id(a), a.name").to_table()
+        else:
+            grapha = self.graph.run("MATCH (a)-[r]->(b) RETURN a.name, type(r), b.name").to_table()
         with open(addr, 'w', newline="", encoding='utf-8') as f:
             grapha.write_separated_values(delimiter, file=f, header=None, skip=None, limit=None, newline='\r\n', quote='"')
+        if use_id:
+            with open(addr+"id2E.csv", 'w', newline="", encoding='utf-8') as f:
+                id2entity.write_separated_values(delimiter, file=f, header=None, skip=None, limit=None, newline='\r\n', quote='"')
 
 
 if __name__ == "__main__":
     addr = ['data/train.txt', 'data/valid.txt', 'data/test.txt']
+    # addr = ['data/triplets.csv']
     # 实例化
     triplets = triplets_analysis(addr)
     # 三元组统计
-    # triplets.save_result_to_CSV(savepath='result/')
+    triplets.save_result_to_CSV(savepath='result/')
     # 数据集分割
     # triplets.split_dataset(ratio='10:1:1', savepath='result/', conditional_random=True)
     # 三元组导入Neo4j
     triplets.triplets_to_Neo4j("http://127.0.0.1//:7474", 'testGraph', '123456', deleteAll=True)
 
-    '''# 实例化
-    neo4j = Neo4j_analysis("http://127.0.0.1//:7474", 'testGraph', '123456')
+    # 实例化
+    # neo4j = Neo4j_analysis("http://127.0.0.1//:7474", 'testGraph', '123456')
     # Neo4j导出三元组
-    neo4j.neo4j_to_triplets('result/triplets.csv')'''
+    # neo4j.neo4j_to_triplets('result/triplets.csv')
 
 
 
