@@ -152,6 +152,10 @@ class triplets_analysis:
         union = {}
         unionTree = {}  # 这个Tree中的定义，根节点为unionTree，unionTree的子节点是并查集，各个子节点维护一个evidence(证据)的数值，叶子节点是小并查集
 
+        for e in self.entities.keys():
+            if len(classified) == 0:
+                self.entities[e]['type'] = max(type_id) + 1
+                union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
 
 
 
