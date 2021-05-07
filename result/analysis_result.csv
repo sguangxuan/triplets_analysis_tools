@@ -1,5 +1,5 @@
 name,head_number,relation_type_number,tail_number,entity_number,triplet_number
-data/train.txt,39610,11,31881,40559,86835
-data/valid.txt,2851,11,2575,5173,3034
-data/test.txt,2958,11,2619,5323,3134
-sum,40701,11,33075,40943,93003
+data/train.txt,112853,37,47933,123143,1079040
+data/valid.txt,4842,33,3153,7948,5000
+data/test.txt,4803,34,3189,7937,5000
+sum,112981,37,48041,123182,1089040

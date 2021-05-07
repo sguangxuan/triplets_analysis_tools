@@ -143,6 +143,9 @@ class triplets_analysis:
                     self.entities[tail]['relation_as_tail'].append(relation)
                     self.entities[tail]['count'] += 1
 
+    def get_keys(self, d, value):
+        return [k for k, v in d.items() if v == value]
+
     def classify_entities(self):
         """分析实体类别"""
         self.analysis_entities()
@@ -153,9 +156,239 @@ class triplets_analysis:
         unionTree = {}  # 这个Tree中的定义，根节点为unionTree，unionTree的子节点是并查集，各个子节点维护一个evidence(证据)的数值，叶子节点是小并查集
 
         for e in self.entities.keys():
+            print(e)
+            # 第一个实体
             if len(classified) == 0:
                 self.entities[e]['type'] = max(type_id) + 1
-                union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
+                e_ = {'entities': [e],
+                      'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                      'isleaf': True,
+                      'isroot': False}
+                unionTree = {'children': {max(type_id) + 2: e_},  # dic类型，注意可能是节点与叶子混合的
+                             'type': max(type_id) + 1,
+                             'evidence': 0,
+                             'entities': [e],
+                             'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                             'isleaf': False,
+                             'isroot': True}
+
+                type_id.append(max(type_id) + 1)
+                type_id.append(max(type_id) + 1)
+                classified.append(e)
+                continue
+
+            # 第一个之外的实体
+            flag = False
+            # 广度优先，先验证每一层找到该节点位置，当这一层有多个节点可合并的时候，说明该节点归类到这一层
+            path = []    # 记录当前访问路径
+            queue = [unionTree]   # 遍历队列
+            while True:
+                queue_ = queue
+                queue = []
+                path_ = path
+                for q in queue_:
+
+                    if not q['isleaf']:
+                        node = q['children']
+                    else:
+                        node = q
+
+                    if 'isleaf' in node.keys() and node['isleaf']:
+                        if list(set(self.entities[e]['relation_as_head']) & set(node['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(node['find'][1])):
+                            queue.append(node)
+                    else:
+                        for k in node.keys():
+                            # if type(node[k]) is list:
+                            if list(set(self.entities[e]['relation_as_head']) & set(node[k]['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(node[k]['find'][1])):
+                                queue.append(node[k])
+
+
+                    if len(queue) == 1:
+
+                        if queue[0]['isleaf'] and q['isroot']:
+                            # 只有一个，如果这个是叶子，父辈是root，则生成新节点
+                            e_ = {'entities': [e],
+                                  'find': [self.entities[e]['relation_as_head'],
+                                           self.entities[e]['relation_as_tail']],
+                                  'isleaf': True,
+                                  'isroot': False}
+                            children_ = {}
+                            for child in queue:
+                                if 'children' in q.keys():
+                                    children_[self.get_keys(q['children'], child)[0]] = child
+
+
+                            children_[max(type_id) + 1] = e_
+                            type_id.append(max(type_id) + 1)
+
+                            new_node = {'children': children_,
+                                        'type': max(type_id) + 1,
+                                        'evidence': 1,
+                                        'entities': list(set([e] + [e_ for q_ in queue for e_ in q_['entities']])),
+                                        'find': [list(set(
+                                            self.entities[e]['relation_as_head'] + [e_ for q_ in queue for e_ in
+                                                                                    q_['find'][0]])),
+                                                 list(set(
+                                                     self.entities[e]['relation_as_tail'] + [e_ for q_ in queue for
+                                                                                             e_ in
+                                                                                             q_['find'][1]]))],
+                                        'isleaf': False,
+                                        'isroot': False}
+                            type_id.append(max(type_id) + 1)
+
+                            for child in queue:
+                                if 'children' in q.keys():
+                                    del q['children'][self.get_keys(q['children'], child)[0]]
+
+                            if 'children' in q.keys():
+                                q['children'][new_node['type']] = new_node
+                            queue = []
+
+                        elif queue[0]['isleaf'] and (not q['isroot']):
+                            # 只有一个，如果这个是叶子，而且父辈不是root，那作为兄弟节点加入
+                            e_ = {'entities': [e],
+                                  'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                                  'isleaf': True,
+                                  'isroot': False}
+                            q['children'][max(type_id) + 1] = e_
+                            q['entities'] = list(set(q['entities'] + [e]))
+                            q['find'] = [list(set(q['find'][0] + self.entities[e]['relation_as_head'])),
+                                         list(set(q['find'][1] + self.entities[e]['relation_as_tail']))]
+                            type_id.append(max(type_id) + 1)
+                            classified.append(e)
+                            queue = []
+
+                        else:
+                            # 只有一个，如果这个是节点，那检查孩子节点
+                            continue
+
+
+                    elif len(queue) == 0:   # 这种情况应该只在第一层出现
+                        # 0个，说明节点与r[k]为兄弟
+                        # TODO: 在进入时候的节点里添加这个信息
+                        e_ = {'entities': [e],
+                              'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                              'isleaf': True,
+                              'isroot': False}
+
+                        q['children'][max(type_id) + 1] = e_
+                        q['entities'] = list(set(q['entities'] + [e]))
+                        q['find'] = [list(set(q['find'][0] + self.entities[e]['relation_as_head'])),
+                                     list(set(q['find'][1] + self.entities[e]['relation_as_tail']))]
+                        type_id.append(max(type_id) + 1)
+                        classified.append(e)
+                        queue = []
+
+                    elif len(queue) > 1:  # 要分辨有没有根节点，即是不是在第一层？
+                        # 看看queue是不是纯叶子list
+                        leaf_flag = True
+                        for i_ in queue:
+                            if not i_['isleaf']:
+                                leaf_flag = False
+
+                        if q['isroot']:
+                            # 多个，应当在这一层合并
+                            # TODO: 新建一个节点new_node，把这一层和这个e_合并起来，在进入时候的节点里添加这个new_node信息
+                            e_ = {'entities': [e],
+                                  'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                                  'isleaf': True,
+                                  'isroot': False}
+                            children_ = {}
+                            for child in queue:
+                                children_[self.get_keys(q['children'], child)[0]] = child
+                            children_[max(type_id) + 1] = e_
+                            type_id.append(max(type_id) + 1)
+
+                            new_node = {'children': children_,
+                                        'type': max(type_id) + 1,
+                                        'evidence': 1,
+                                        'entities': list(set([e] + [e_ for q_ in queue for e_ in q_['entities']])),
+                                        'find': [list(set(self.entities[e]['relation_as_head'] + [e_ for q_ in queue for e_ in q_['find'][0]])),
+                                                 list(set(self.entities[e]['relation_as_tail'] + [e_ for q_ in queue for e_ in q_['find'][1]]))],
+                                        'isleaf': False,
+                                        'isroot': False}
+                            type_id.append(max(type_id) + 1)
+
+                            for child in queue:
+                                del q['children'][self.get_keys(q['children'], child)[0]]
+
+                            q['children'][new_node['type']] = new_node
+                            queue = []
+
+                        elif leaf_flag:
+                            # queue中纯叶子，且不是root
+                            e_ = {'entities': [e],
+                                  'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                                  'isleaf': True,
+                                  'isroot': False}
+
+                            q['children'][max(type_id) + 1] = e_
+                            q['entities'] = list(set(q['entities'] + [e]))
+                            q['find'] = [list(set(q['find'][0] + self.entities[e]['relation_as_head'])),
+                                         list(set(q['find'][1] + self.entities[e]['relation_as_tail']))]
+                            type_id.append(max(type_id) + 1)
+                            classified.append(e)
+                            queue = []
+
+                        else:
+                            # node['evidence'] += 1
+                            # 检查孩子节点
+                            # 把queue中的叶子节点剔除
+                            for _ in queue:
+                                if _['isleaf']:
+                                    queue.pop(queue.index(_))
+                            continue
+
+                if not queue:
+                    break
+
+
+            '''root = {0: [unionTree]}
+            for floor in range(self.maxDepth(unionTree)):
+                root[floor+1] = []
+
+                for r in root[floor]['nodes']:
+                    if list(set(self.entities[e]['relation_as_head']) & set(r['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(r['find'][1])):
+                        root[floor+1].append(r)
+
+                if len(root[floor+1]) == 1:
+                    # 只有一个，检查孩子节点
+                    continue
+
+                elif len(root[floor+1]) == 0:
+                    # 0个，说明节点与r[k]为兄弟
+                    # TODO: 在进入时候的节点里添加这个信息
+                    e_ = {'entities': [e],
+                          'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                          'isleaf': True}
+                    root[floor]['nodes'] = root[floor]['nodes'] + [e]
+
+
+
+                elif len(root[floor+1]) > 1:
+                    # 多个，应当在这一层合并
+                    # TODO: 新建一个节点new_node，把这一层和这个e_合并起来，在进入时候的节点里添加这个new_node信息
+                    e_ = {'entities': [e],
+                          'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
+                          'isleaf': True}
+                    new_node = {'nodes': root[floor+1] + [e_],
+                                'type': max(type_id) + 1,
+                                'evidence': 1,
+                                'entities': [n for name in root[floor+1] for n in name['entities']] + [e],
+                                'find': [[n for name in root[floor+1] for n in name['find'][0]] + [self.entities[e]['relation_as_head']],
+                                         [n for name in root[floor+1] for n in name['find'][1]] + self.entities[e]['relation_as_tail']],
+                                'isleaf': False}
+
+
+                    type_id.append(max(type_id) + 1)
+                    classified.append(e)
+                    pass
+
+
+
+
+
+
 
 
 
@@ -210,12 +443,12 @@ class triplets_analysis:
                 self.entities[e]['type'] = max(type_id) + 1
                 union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
                 type_id.append(max(type_id) + 1)
-                classified.append(e)
+                classified.append(e)'''
         '''for e in self.entities.keys():
             print(e, self.entities[e]['type'], self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail'])
         print(union)'''
 
-        item = json.dumps(union)
+        item = json.dumps(unionTree)
         try:
             if not os.path.exists('dic.json'):
                 with open('dic.json', "w", encoding='utf-8') as f:
@@ -422,6 +655,7 @@ class Neo4j_analysis:
 
 if __name__ == "__main__":
     addr = ['data/train.txt', 'data/valid.txt', 'data/test.txt']
+    # addr = ['data/self-test.txt']
     # addr = ['data/triplets.csv']
     # 实例化
     triplets = triplets_analysis(addr)
@@ -429,8 +663,11 @@ if __name__ == "__main__":
     triplets.save_result_to_CSV(savepath='result/')
     # 数据集分割
     # triplets.split_dataset(ratio='10:1:1', savepath='result/', conditional_random=True)
+
+    triplets.classify_entities()
+
     # 三元组导入Neo4j
-    triplets.triplets_to_Neo4j("http://127.0.0.1//:7474", 'testGraph', '123456', deleteAll=True)
+    # triplets.triplets_to_Neo4j("http://127.0.0.1//:7474", 'testGraph', '123456', deleteAll=True)
 
     # 实例化
     # neo4j = Neo4j_analysis("http://127.0.0.1//:7474", 'testGraph', '123456')
