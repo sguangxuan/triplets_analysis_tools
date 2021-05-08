@@ -146,6 +146,74 @@ class triplets_analysis:
     def get_keys(self, d, value):
         return [k for k, v in d.items() if v == value]
 
+    def resavejson(self, path='dic.json'):
+
+        f = open(path, 'r')
+        content = f.read()
+        unionTree = json.loads(content)
+        f.close()
+
+        queue = [unionTree]
+        while True:
+            for q in queue:
+                queue.pop(queue.index(q))
+                try:
+                    del q['entities']
+                except:
+                    pass
+                try:
+                    del q['isleaf']
+                except:
+                    pass
+                try:
+                    del q['isroot']
+                except:
+                    pass
+                if 'children' in q.keys():
+                    keys = list(q['children'].keys())
+                    for _ in keys:
+                        if q['children'][_]['isleaf']:
+                            del q['children'][_]
+                    for _ in q['children'].keys():
+                        queue.append(q['children'][_])
+            print(len(queue))
+            if not queue:
+                break
+
+        print(unionTree)
+
+        item = json.dumps(unionTree)
+        try:
+            if not os.path.exists('dic-new.json'):
+                with open('dic-new.json', "w", encoding='utf-8') as f:
+                    f.write(item + "\n")
+                    print("^_^ write success")
+            else:
+                with open('dic-new.json', "a", encoding='utf-8') as f:
+                    f.write(item + "\n")
+                    print("^_^ write success")
+        except Exception as e:
+            print("write error==>", e)
+
+
+        self.analysis_entities()
+        print(self.entities)
+        item = json.dumps(self.entities)
+        try:
+            if not os.path.exists('dic-e.json'):
+                with open('dic-e.json', "w", encoding='utf-8') as f:
+                    f.write(item + "\n")
+                    print("^_^ write success")
+            else:
+                with open('dic-e.json', "a", encoding='utf-8') as f:
+                    f.write(item + "\n")
+                    print("^_^ write success")
+        except Exception as e:
+            print("write error==>", e)
+
+
+        return 0
+
     def classify_entities(self):
         """分析实体类别"""
         self.analysis_entities()
@@ -342,121 +410,15 @@ class triplets_analysis:
                 if not queue:
                     break
 
-
-            '''root = {0: [unionTree]}
-            for floor in range(self.maxDepth(unionTree)):
-                root[floor+1] = []
-
-                for r in root[floor]['nodes']:
-                    if list(set(self.entities[e]['relation_as_head']) & set(r['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(r['find'][1])):
-                        root[floor+1].append(r)
-
-                if len(root[floor+1]) == 1:
-                    # 只有一个，检查孩子节点
-                    continue
-
-                elif len(root[floor+1]) == 0:
-                    # 0个，说明节点与r[k]为兄弟
-                    # TODO: 在进入时候的节点里添加这个信息
-                    e_ = {'entities': [e],
-                          'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
-                          'isleaf': True}
-                    root[floor]['nodes'] = root[floor]['nodes'] + [e]
-
-
-
-                elif len(root[floor+1]) > 1:
-                    # 多个，应当在这一层合并
-                    # TODO: 新建一个节点new_node，把这一层和这个e_合并起来，在进入时候的节点里添加这个new_node信息
-                    e_ = {'entities': [e],
-                          'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']],
-                          'isleaf': True}
-                    new_node = {'nodes': root[floor+1] + [e_],
-                                'type': max(type_id) + 1,
-                                'evidence': 1,
-                                'entities': [n for name in root[floor+1] for n in name['entities']] + [e],
-                                'find': [[n for name in root[floor+1] for n in name['find'][0]] + [self.entities[e]['relation_as_head']],
-                                         [n for name in root[floor+1] for n in name['find'][1]] + self.entities[e]['relation_as_tail']],
-                                'isleaf': False}
-
-
-                    type_id.append(max(type_id) + 1)
-                    classified.append(e)
-                    pass
-
-
-
-
-
-
-
-
-
-
-
-
-        for e in self.entities.keys():
-            if len(classified) == 0:
-                self.entities[e]['type'] = max(type_id) + 1
-                union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
-
-
-                type_id.append(max(type_id) + 1)
-                classified.append(e)
-                continue
-            flag = False
-            for h in union.keys():
-                if list(set(self.entities[e]['relation_as_head']) & set(union[h]['find'][0])) or list(set(self.entities[e]['relation_as_tail']) & set(union[h]['find'][1])):
-                    # 有交集
-                    self.entities[e]['type'] = h
-                    classified.append(e)
-                    union[h]['entities'].append(e)
-                    union[h]['find'][0].extend(self.entities[e]['relation_as_head'])
-                    union[h]['find'][0] = list(set(union[h]['find'][0]))
-                    union[h]['find'][1].extend(self.entities[e]['relation_as_tail'])
-                    union[h]['find'][1] = list(set(union[h]['find'][1]))
-                    flag = True
-                    break
-            if flag:
-                tmp_union = copy.deepcopy(union)
-                while True:
-                    for h in itertools.combinations(union.keys(), 2):
-                        try:
-                            if list(set(union[str(h[0])]['find'][0]) & set(union[str(h[1])]['find'][0])) or list(set(union[str(h[0])]['find'][1]) & set(union[str(h[1])]['find'][1])):
-                                # 合并
-                                for tmp in union[str(h[1])]['entities']:
-                                    self.entities[tmp]['type'] = h[0]
-                                union[str(h[0])]['entities'].extend(union[str(h[1])]['entities'])
-                                union[str(h[0])]['find'][0].extend(union[str(h[1])]['find'][0])
-                                union[str(h[0])]['find'][0] = list(set(union[str(h[0])]['find'][0]))
-                                union[str(h[0])]['find'][1].extend(union[str(h[1])]['find'][1])
-                                union[str(h[0])]['find'][1] = list(set(union[str(h[0])]['find'][1]))
-                                del union[str(h[1])]
-                        except:
-                            pass
-                    if tmp_union == union:
-                        break
-                    else:
-                        tmp_union = union
-
-            if not flag:
-                self.entities[e]['type'] = max(type_id) + 1
-                union[str(max(type_id) + 1)] = {'entities': [e], 'find': [self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail']]}
-                type_id.append(max(type_id) + 1)
-                classified.append(e)'''
-        '''for e in self.entities.keys():
-            print(e, self.entities[e]['type'], self.entities[e]['relation_as_head'], self.entities[e]['relation_as_tail'])
-        print(union)'''
-
         item = json.dumps(unionTree)
         try:
             if not os.path.exists('dic.json'):
                 with open('dic.json', "w", encoding='utf-8') as f:
-                    f.write(item + ",\n")
+                    f.write(item + "\n")
                     print("^_^ write success")
             else:
                 with open('dic.json', "a", encoding='utf-8') as f:
-                    f.write(item + ",\n")
+                    f.write(item + "\n")
                     print("^_^ write success")
         except Exception as e:
             print("write error==>", e)
@@ -664,7 +626,10 @@ if __name__ == "__main__":
     # 数据集分割
     # triplets.split_dataset(ratio='10:1:1', savepath='result/', conditional_random=True)
 
-    triplets.classify_entities()
+    # triplets.classify_entities()
+    # 简化保存的json格式，并重新保存
+    # triplets.resavejson(path='dicCMKG.json')
+    triplets.resavejson(path='dicYAGO10.json')
 
     # 三元组导入Neo4j
     # triplets.triplets_to_Neo4j("http://127.0.0.1//:7474", 'testGraph', '123456', deleteAll=True)
